@@ -32,20 +32,32 @@ on:
         type: string
         default: 'docker-compose.yml'
     secrets:
+      TAILSCALE_AUTHKEY:
+        description: 'Tailscale Ephemeral Auth Key untuk menghubungkan GitHub Runner ke Tailnet'
+        required: true
       SERVER_HOST:
+        description: 'Tailscale IP server target (misal: 100.101.0.48)'
         required: true
       SERVER_USER:
+        description: 'User SSH server (root / gokodingin)'
         required: true
       SSH_PRIVATE_KEY:
+        description: 'Private SSH Key untuk login ke server'
         required: true
       NPM_PASSWORD:
+        description: 'Password login NPM API'
         required: true
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy & Provision via SSH
+      - name: Connect GitHub Runner to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          tags: tag:ci
+
+      - name: Deploy & Provision via Tailscale SSH
         uses: appleboy/ssh-action@v1.0.3
         env:
           NPM_PASSWORD: ${{ secrets.NPM_PASSWORD }}
