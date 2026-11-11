@@ -58,9 +58,27 @@ Seluruh project GoKodingin wajib memiliki pipeline CI/CD 3 tahap yang saling ber
 mkdir -p .github/workflows
 curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/templates/pipeline.template.yml -o .github/workflows/pipeline.yml
 ```
-
 ---
 
+## 🔐 GitHub Secrets yang Wajib Didaftarkan di Repository Project
+
+Karena server `100.101.0.48` berada di dalam jaringan privat **Tailscale**, GitHub Runner wajib terhubung ke Tailscale terlebih dahulu sebelum melakukan SSH:
+
+| Secret Name | Deskripsi | Nilai Contoh |
+| :--- | :--- | :--- |
+| **`TAILSCALE_AUTHKEY`** | Ephemeral Auth Key dari Tailscale Admin Console | `tskey-auth-kXXXXX-XXXXX` |
+| **`SERVER_HOST`** | IP Tailscale server target | `100.101.0.48` |
+| **`SERVER_USER`** | User SSH server | `root` atau `gokodingin` |
+| **`SSH_PRIVATE_KEY`** | Private key SSH (`id_rsa` / `id_ed25519`) | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
+| **`NPM_PASSWORD`** | Password akun NPM (`gokodingin@gmail.com`) | Password dashboard NPM Anda |
+
+> **💡 Cara Mendapatkan `TAILSCALE_AUTHKEY`:**
+> 1. Buka [Tailscale Admin Console](https://login.tailscale.com/admin/settings/keys).
+> 2. Klik **Generate auth key**.
+> 3. Aktifkan **Reusable** (opsional) dan **Ephemeral** (agar mesin GitHub Actions otomatis dihapus dari daftar device Tailscale setelah deploy selesai).
+> 4. Tambahkan tag misal `tag:ci` -> klik **Generate key** dan simpan di GitHub Secrets repo Anda sebagai `TAILSCALE_AUTHKEY`.
+
+---
 ## 🛠️ Scripts & Utilities
 
 - `scripts/sync-npm-proxy.sh`: Script sinkronisasi NPM via REST API (juga terinstall global di server di `/usr/local/bin/sync-npm-proxy`).
