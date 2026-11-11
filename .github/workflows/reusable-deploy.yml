@@ -77,13 +77,26 @@ jobs:
             set -e
             echo "=== [1/3] Menyiapkan Direktori & Kode Aplikasi ==="
             PROJECT_DIR="/home/gokodingin/$REPO_NAME"
-            if [ ! -d "$PROJECT_DIR" ]; then
-              echo "Folder $PROJECT_DIR belum ada di server, silakan clone terlebih dahulu."
-              exit 1
+            if [ ! -d "$PROJECT_DIR/.git" ]; then
+              echo "Folder $PROJECT_DIR belum memiliki git repo. Meng-clone dari GitHub..."
+              mkdir -p "/home/gokodingin"
+              if [ -d "$PROJECT_DIR" ]; then
+                cd "$PROJECT_DIR"
+                git init
+                git remote add origin "git@github.com:${{ github.repository }}.git" || true
+                git fetch origin
+                git checkout -f "${{ github.ref_name }}" || git checkout -b "${{ github.ref_name }}" "origin/${{ github.ref_name }}"
+              else
+                git clone "git@github.com:${{ github.repository }}.git" "$PROJECT_DIR"
+                cd "$PROJECT_DIR"
+                git checkout "${{ github.ref_name }}"
+              fi
+            else
+              cd "$PROJECT_DIR"
+              git fetch origin
+              git checkout "${{ github.ref_name }}"
+              git pull origin "${{ github.ref_name }}"
             fi
-            cd "$PROJECT_DIR"
-            git pull origin main || git pull origin master
-
             echo "=== [2/3] Memeriksa Shared Database ==="
             COMPOSE_PROFILE=""
             if [ "$DB_TYPE" = "postgres" ]; then
