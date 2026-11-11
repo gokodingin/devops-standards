@@ -1,0 +1,82 @@
+name: Pipeline (Test, Staging, Production)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - staging
+      - develop
+  pull_request:
+    branches:
+      - main
+      - master
+      - staging
+
+jobs:
+  # --------------------------------------------------------------------------
+  # 1. INTEGRATION & QUALITY TEST (Gatekeeper: Wajib Lolos Sebelum Deploy)
+  # --------------------------------------------------------------------------
+  integration-test:
+    name: 🧪 Integration & Automated Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Run Tests & Build Verification
+        run: |
+          npm ci || npm install
+          if npm run | grep -q "test"; then
+            npm test
+          fi
+          if npm run | grep -q "build"; then
+            npm run build
+          fi
+
+      - name: Verify Docker Compose Files
+        run: |
+          if [ -f "docker-compose.yml" ]; then docker compose -f docker-compose.yml config > /dev/null; fi
+          if [ -f "docker-compose.staging.yml" ]; then docker compose -f docker-compose.staging.yml config > /dev/null; fi
+          if [ -f "docker-compose.dev.yml" ]; then docker compose -f docker-compose.dev.yml config > /dev/null; fi
+          echo "All compose files are syntactically valid."
+
+  # --------------------------------------------------------------------------
+  # 2. DEPLOY STAGING (Tergantung hasil integration-test, hanya branch staging/develop)
+  # --------------------------------------------------------------------------
+  deploy-staging:
+    name: 🚀 Deploy to Staging
+    needs: integration-test
+    if: github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/develop'
+    uses: gokodingin/devops-standards/.github/workflows/reusable-deploy.yml@main
+    secrets: inherit
+    with:
+      domain: "staging-myapp.gokodingin.com"
+      container_name: "myapp_staging"
+      port: 3000
+      db_type: "postgres"
+      db_name: "myapp_staging"
+      compose_file: "docker-compose.staging.yml"
+
+  # --------------------------------------------------------------------------
+  # 3. DEPLOY PRODUCTION (Tergantung hasil integration-test, hanya branch main/master)
+  # --------------------------------------------------------------------------
+  deploy-production:
+    name: 🛡️ Deploy to Production
+    needs: integration-test
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    uses: gokodingin/devops-standards/.github/workflows/reusable-deploy.yml@main
+    secrets: inherit
+    with:
+      domain: "myapp.gokodingin.com"
+      container_name: "myapp_prod"
+      port: 3000
+      db_type: "postgres"
+      db_name: "myapp_prod"
+      compose_file: "docker-compose.yml"

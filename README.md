@@ -45,31 +45,18 @@ curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/tem
 ```
 ---
 
-## 🚀 Reusable GitHub Actions Workflow (CI/CD 5 Baris)
+## 🚀 Reusable CI/CD Pipeline (Integration Test -> Staging -> Production)
 
-Di repository project apa pun di akun `gokodingin`, Anda **tidak perlu lagi menulis script SSH yang panjang**. Cukup panggil reusable workflow dari repo ini:
+Seluruh project GoKodingin wajib memiliki pipeline CI/CD 3 tahap yang saling bergantung (**dependent pipeline**):
 
-Buat file `.github/workflows/deploy.yml` di project Anda:
+1. **Stage 1: `integration-test` (Gatekeeper)**: Menjalankan test unit/integration, compile/build check, dan validasi sintaks Docker Compose. Jika gagal, deployment otomatis dibatalkan.
+2. **Stage 2: `deploy-staging`**: Bergantung (`needs: integration-test`). Hanya aktif di branch `staging`/`develop`. Menerapkan `docker-compose.staging.yml`.
+3. **Stage 3: `deploy-production`**: Bergantung (`needs: integration-test`). Hanya aktif di branch `main`/`master`. Menerapkan `docker-compose.yml`.
 
-```yaml
-name: Deploy to Production
-
-on:
-  push:
-    branches:
-      - main
-      - production
-
-jobs:
-  deploy:
-    uses: gokodingin/devops-standards/.github/workflows/reusable-deploy.yml@main
-    secrets: inherit
-    with:
-      domain: "myapp.gokodingin.com"      # Subdomain publik yang diinginkan
-      container_name: "myapp_app"         # Nama container di compose
-      port: 3000                          # Port internal container
-      db_type: "postgres"                 # postgres | mariadb | none
-      db_name: "myapp_prod"               # Otomatis dibuat jika belum ada di shared DB
+### Cara Pasang di Project Baru:
+```bash
+mkdir -p .github/workflows
+curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/templates/pipeline.template.yml -o .github/workflows/pipeline.yml
 ```
 
 ---
