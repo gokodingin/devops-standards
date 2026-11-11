@@ -39,11 +39,10 @@ curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/tem
 curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/templates/dockerignore.template -o .dockerignore
 ```
 
-### 5. Ambil Template `docker-compose.override.yml` (Live Mount & Hot-Reload Dev)
+### 5. Ambil Template `docker-compose.dev.yml` (Live Mount & Hot-Reload Dev)
 ```bash
-curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/templates/docker-compose.override.yml.example -o docker-compose.override.yml
+curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/templates/docker-compose.dev.template.yml -o docker-compose.dev.yml
 ```
-
 ---
 
 ## 🚀 Reusable GitHub Actions Workflow (CI/CD 5 Baris)

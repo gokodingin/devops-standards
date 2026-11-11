@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development       # Mengaktifkan dev dependencies, ts-node / watch
+    container_name: ${CONTAINER_NAME:-myapp}_dev
+    restart: unless-stopped
+    ports:
+      - "${DEV_PORT:-3000}:3000" # Expose ke localhost developer
+    volumes:
+      - .:/app                  # Live mount: kode berubah langsung hot reload tanpa rebuild
+      - /app/node_modules       # Mencegah node_modules host menimpa container
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@db_dev:5432/myapp_dev}
+    command: npm run dev
+
+  # Database lokal independen untuk kebutuhan dev offline
+  db_dev:
+    image: postgres:15-alpine
+    container_name: ${CONTAINER_NAME:-myapp}_db_dev
+    ports:
+      - "${DEV_DB_PORT:-5432}:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=myapp_dev
+    volumes:
+      - dev_db_data:/var/lib/postgresql/data
+
+volumes:
+  dev_db_data:
