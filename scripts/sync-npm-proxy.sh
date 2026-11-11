@@ -46,11 +46,15 @@ echo "[2/3] Memeriksa apakah domain $DOMAIN sudah ada di NPM..."
 ALL_HOSTS=$(curl -s -f -X GET "$NPM_HOST/api/nginx/proxy-hosts" \
   -H "Authorization: Bearer $TOKEN")
 
-EXISTING_ID=$(node -e '
-const hosts = JSON.parse(process.argv[1]);
-const targetDomain = process.argv[2];
-const found = hosts.find(h => Array.isArray(h.domain_names) && h.domain_names.includes(targetDomain));
-console.log(found ? found.id : "");
+EXISTING_ID=$(python3 -c '
+import sys, json
+try:
+    hosts = json.loads(sys.argv[1])
+    target = sys.argv[2]
+    found = next((h for h in hosts if isinstance(h.get("domain_names"), list) and target in h["domain_names"]), None)
+    print(found["id"] if found else "")
+except Exception:
+    print("")
 ' "$ALL_HOSTS" "$DOMAIN")
 
 PROXY_PAYLOAD=$(cat <<EOF
