@@ -123,9 +123,9 @@ jobs:
             fi
 
             echo "=== [3/3] Menjalankan Container & Sinkronisasi NPM ==="
-            # Gunakan nama project turunan dari compose_file (misal home-storage-staging / home-storage-prod)
-            CLEAN_ENV=$(echo "$COMPOSE_FILE" | sed -E 's/docker-compose\.?//; s/\.ya?ml//; s/^\.//')
-            if [ -z "$CLEAN_ENV" ] || [ "$CLEAN_ENV" = "yml" ] || [ "$CLEAN_ENV" = "yaml" ]; then
+            # Gunakan nama project turunan dari compose_file (misal dashboard-crm-staging / dashboard-crm-prod)
+            CLEAN_ENV=$(echo "$COMPOSE_FILE" | sed -E 's/^(docker-)?compose\.?//; s/\.ya?ml$//' | tr -cd 'a-z0-9_-')
+            if [ -z "$CLEAN_ENV" ] || [ "$CLEAN_ENV" = "prod" ] || [ "$CLEAN_ENV" = "production" ] || [ "$CLEAN_ENV" = "yml" ]; then
               PROJECT_ENV_NAME="${REPO_NAME}-prod"
             else
               PROJECT_ENV_NAME="${REPO_NAME}-${CLEAN_ENV}"
