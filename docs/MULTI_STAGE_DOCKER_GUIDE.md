@@ -229,7 +229,50 @@ volumes:
 
 ---
 
-## 4. Checklist & Best Practices Perampingan Size Container
+## 4. Standar Development: Live Mount Source & Zero-Rebuild Workflow
+
+Agar developer di lingkungan lokal **tidak perlu me-rebuild image container setiap kali ada perubahan baris kode**, seluruh project GoKodingin wajib menggunakan pola **`docker-compose.override.yml`**.
+
+### Cara Kerja Pola Override:
+1. File utama `docker-compose.yml` tetap bersih dan dioptimalkan untuk **Production**.
+2. Developer lokal cukup membuat file `docker-compose.override.yml` di root project.
+3. Saat `docker compose up` dijalankan di laptop developer, Docker Compose otomatis menggabungkan file utama dengan file override tanpa perlu flag tambahan.
+4. File `docker-compose.override.yml` wajib masuk ke `.gitignore` agar tidak pernah ter-push ke production server.
+
+### Template Standar `docker-compose.override.yml` (Bisa dipakai di project apa pun):
+```yaml
+services:
+  # Override service backend ke mode dev & live mount
+  backend:
+    build:
+      context: .
+      target: development       # Mengaktifkan stage dev (ada ts-node/nodemon/node --watch)
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - .:/app                  # [LIVE MOUNT] Source code host tersambung langsung ke container
+      - /app/node_modules       # [ANONYMOUS VOLUME] Mencegah node_modules container tertimpa host
+    command: npm run dev        # Hot-reloading watch script
+
+  # Override service frontend ke Vite HMR
+  frontend:
+    build:
+      context: .
+      target: development
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev -- --host
+```
+
+### Manfaat Pola Ini untuk Semua Project:
+- **Instan (Zero Downtime / Zero Rebuild)**: File disimpan (Ctrl+S), container langsung auto-reload via `node --watch` atau Vite HMR dalam milidetik.
+- **Isolated Node Modules**: Menggunakan anonymous volume `- /app/node_modules` memastikan dependensi binary Linux di dalam container tidak bentrok dengan `node_modules` di mesin Windows/macOS/host.
+- **Single Command**: Cukup `docker compose up` untuk dev, dan `docker compose -f docker-compose.yml up -d` untuk production murni.
+
+---
+
+## 5. Checklist & Best Practices Perampingan Size Container
 
 | Aspek | Praktik Buruk (Anti-Pattern) | Praktik Baik (Standard Multi-Stage) |
 | :--- | :--- | :--- |
@@ -259,7 +302,7 @@ docker-compose*
 
 ---
 
-## 5. Ringkasan Perbandingan Ukuran Image Hasil Build
+## 6. Ringkasan Perbandingan Ukuran Image Hasil Build
 
 | Stage | Yang Termasuk | Estimasi Ukuran Image |
 | :--- | :--- | :--- |
