@@ -1,0 +1,67 @@
+name: Test & Staging Deployment
+
+on:
+  push:
+    branches:
+      - staging
+  pull_request:
+    branches:
+      - staging
+
+jobs:
+  # --------------------------------------------------------------------------
+  # 1. INTEGRATION TEST
+  # --------------------------------------------------------------------------
+  integration-test:
+    name: 🧪 Automated Test & Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            storage-api/package.json
+            storage-app/package.json
+
+      - name: Backend Test
+        run: |
+          if [ -d "storage-api" ]; then
+            cd storage-api
+            npm ci || npm install
+            if npm run | grep -q "test"; then npm test; fi
+            cd ..
+          fi
+
+      - name: Frontend Build Verification
+        run: |
+          if [ -d "storage-app" ]; then
+            cd storage-app
+            npm ci || npm install
+            if npm run | grep -q "test"; then npm test; fi
+            npm run build
+            cd ..
+          fi
+
+      - name: Verify Compose Syntax
+        run: |
+          docker compose -f docker-compose.staging.yml config > /dev/null
+
+  # --------------------------------------------------------------------------
+  # 2. DEPLOY KE SERVER STAGING
+  # --------------------------------------------------------------------------
+  deploy-staging:
+    name: 🚀 Deploy to Staging Server
+    needs: integration-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+    uses: gokodingin/devops-standards/.github/workflows/reusable-deploy.yml@main
+    secrets: inherit
+    with:
+      domain: "storage-staging.gokodingin.com"
+      container_name: "home_storage_nginx_staging"
+      port: 80
+      db_type: "postgres"
+      db_name: "home_storage_staging"
+      compose_file: "docker-compose.staging.yml"
