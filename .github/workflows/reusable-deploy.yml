@@ -110,9 +110,11 @@ jobs:
 
             echo "=== [3/3] Menjalankan Container & Sinkronisasi NPM ==="
             # Gunakan nama project turunan dari compose_file (misal home-storage-staging / home-storage-prod)
-            PROJECT_ENV_NAME="${REPO_NAME}-$(echo "$COMPOSE_FILE" | sed -E 's/docker-compose\.?//; s/\.ya?ml//')"
-            if [ -z "$PROJECT_ENV_NAME" ] || [ "$PROJECT_ENV_NAME" = "${REPO_NAME}-" ]; then
+            CLEAN_ENV=$(echo "$COMPOSE_FILE" | sed -E 's/docker-compose\.?//; s/\.ya?ml//; s/^\.//')
+            if [ -z "$CLEAN_ENV" ] || [ "$CLEAN_ENV" = "yml" ] || [ "$CLEAN_ENV" = "yaml" ]; then
               PROJECT_ENV_NAME="${REPO_NAME}-prod"
+            else
+              PROJECT_ENV_NAME="${REPO_NAME}-${CLEAN_ENV}"
             fi
             docker compose -p "$PROJECT_ENV_NAME" -f "$COMPOSE_FILE" $COMPOSE_PROFILE up -d --build
             # Panggil binary global sync-npm-proxy yang terinstall di /usr/local/bin
