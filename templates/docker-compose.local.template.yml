@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./storage-api
+      dockerfile: Dockerfile
+      target: development
+    container_name: home_storage_backend_local
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./storage-api:/app
+      - /app/node_modules
+      - ./storage:/var/storage
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DATABASE_URL=postgresql://gokodingin:GoKodingin2024@DB_POSTGRE:5432/home_storage_dev
+      - STORAGE_ROOT=/var/storage
+      - JWT_SECRET=local_jwt_secret_key_12345
+      - CORS_ORIGIN=http://localhost:5173
+    command: npm run dev
+    networks:
+      - shared_network
+
+  frontend:
+    build:
+      context: ./storage-app
+      dockerfile: Dockerfile
+      target: development
+      args:
+        VITE_API_URL: http://localhost:3000/api
+    container_name: home_storage_frontend_local
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./storage-app:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:3000/api
+    command: npm run dev -- --host
+    networks:
+      - shared_network
+
+networks:
+  shared_network:
+    external: true

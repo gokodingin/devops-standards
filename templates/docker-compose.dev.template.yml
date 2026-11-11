@@ -1,36 +1,77 @@
 version: '3.8'
 
 services:
-  app:
+  # ── Node.js Backend (Dev Server) ─────────────────────────────
+  backend_dev:
     build:
-      context: .
+      context: ./storage-api
       dockerfile: Dockerfile
-      target: development       # Mengaktifkan dev dependencies, ts-node / watch
-    container_name: ${CONTAINER_NAME:-myapp}_dev
+      target: development       # Stage dev: runtime + hot-reload + dev tools
+    container_name: home_storage_backend_dev
+    user: "root"
     restart: unless-stopped
-    ports:
-      - "${DEV_PORT:-3000}:3000" # Expose ke localhost developer
-    volumes:
-      - .:/app                  # Live mount: kode berubah langsung hot reload tanpa rebuild
-      - /app/node_modules       # Mencegah node_modules host menimpa container
     environment:
-      - NODE_ENV=development
-      - PORT=3000
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@db_dev:5432/myapp_dev}
-    command: npm run dev
-
-  # Database lokal independen untuk kebutuhan dev offline
-  db_dev:
-    image: postgres:15-alpine
-    container_name: ${CONTAINER_NAME:-myapp}_db_dev
-    ports:
-      - "${DEV_DB_PORT:-5432}:5432"
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=myapp_dev
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL:-postgresql://gokodingin:GoKodingin2024@DB_POSTGRE:5432/home_storage_dev}
+      STORAGE_ROOT: /var/storage
+      JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_key_random_12345}
+      JWT_EXPIRES_IN: 24h
+      CORS_ORIGIN: "*"
     volumes:
-      - dev_db_data:/var/lib/postgresql/data
+      - ./storage_dev:/var/storage
+    networks:
+      - shared_network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    expose:
+      - "3000"
 
-volumes:
-  dev_db_data:
+  # ── React Frontend (Dev Server) ──────────────────────────────
+  frontend_dev:
+    build:
+      context: ./storage-app
+      dockerfile: Dockerfile
+      target: builder
+      args:
+        VITE_API_URL: /api
+        MODE: development
+    container_name: home_storage_frontend_dev
+    restart: unless-stopped
+    networks:
+      - shared_network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    expose:
+      - "80"
+
+  # ── Nginx Reverse Proxy (Dev Server) ─────────────────────────
+  nginx_dev:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile.staging
+    container_name: home_storage_nginx_dev
+    restart: unless-stopped
+    depends_on:
+      backend_dev:
+        condition: service_healthy
+      frontend_dev:
+        condition: service_healthy
+    expose:
+      - "80"
+    volumes:
+      - ./storage_dev:/var/storage:ro
+    networks:
+      - shared_network
+
+networks:
+  shared_network:
+    external: true
