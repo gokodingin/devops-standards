@@ -229,47 +229,65 @@ volumes:
 
 ---
 
-## 4. Standar Development: Live Mount Source & Zero-Rebuild Workflow
+## 4. Standar Development: `docker-compose.dev.yml` (Live Mount & Zero-Rebuild)
 
-Agar developer di lingkungan lokal **tidak perlu me-rebuild image container setiap kali ada perubahan baris kode**, seluruh project GoKodingin wajib menggunakan pola **`docker-compose.override.yml`**.
+Pendekatan eksplisit menggunakan file **`docker-compose.dev.yml`** adalah standar yang paling bersih, transparan, dan dapat disimpan di git repo untuk seluruh tim developer.
 
-### Cara Kerja Pola Override:
-1. File utama `docker-compose.yml` tetap bersih dan dioptimalkan untuk **Production**.
-2. Developer lokal cukup membuat file `docker-compose.override.yml` di root project.
-3. Saat `docker compose up` dijalankan di laptop developer, Docker Compose otomatis menggabungkan file utama dengan file override tanpa perlu flag tambahan.
-4. File `docker-compose.override.yml` wajib masuk ke `.gitignore` agar tidak pernah ter-push ke production server.
+### Mengapa Menggunakan File Terpisah `docker-compose.dev.yml`?
+1. **Pemisahan Konfigurasi yang Jelas**:
+   - `docker-compose.yml` -> Standar **Production** di server (`target: production`, `expose:`, tanpa mount code host).
+   - `docker-compose.staging.yml` -> Standar **Staging** di server (`target: production`, `expose:`).
+   - `docker-compose.dev.yml` -> Standar **Development Lokal** (`target: development`, port forwarding ke host, live bind-mount).
+2. **Version Controlled di Git**: File `docker-compose.dev.yml` disimpan langsung di repo sehingga developer baru tinggal clone repo dan langsung menjalankan satu perintah tanpa perlu membuat/mengcopy file override manual.
 
-### Template Standar `docker-compose.override.yml` (Bisa dipakai di project apa pun):
+### Struktur Template Standar `docker-compose.dev.yml`:
 ```yaml
+version: '3.8'
+
 services:
-  # Override service backend ke mode dev & live mount
   backend:
     build:
-      context: .
-      target: development       # Mengaktifkan stage dev (ada ts-node/nodemon/node --watch)
-    environment:
-      - NODE_ENV=development
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development       # Stage dev: ada nodemon, ts-node, atau node --watch
+    container_name: myapp_backend_dev
+    ports:
+      - "3000:3000"            # Bind ke localhost developer
     volumes:
-      - .:/app                  # [LIVE MOUNT] Source code host tersambung langsung ke container
-      - /app/node_modules       # [ANONYMOUS VOLUME] Mencegah node_modules container tertimpa host
-    command: npm run dev        # Hot-reloading watch script
+      - ./backend:/app          # [LIVE MOUNT] Save code langsung terupdate di container
+      - /app/node_modules       # [ANONYMOUS VOLUME] Mengisolasi dependensi Linux container
+    command: npm run dev
 
-  # Override service frontend ke Vite HMR
   frontend:
     build:
-      context: .
+      context: ./frontend
+      dockerfile: Dockerfile
       target: development
+    container_name: myapp_frontend_dev
+    ports:
+      - "5173:5173"            # Port Vite dev server
     volumes:
-      - .:/app
+      - ./frontend:/app
       - /app/node_modules
     command: npm run dev -- --host
 ```
 
-### Manfaat Pola Ini untuk Semua Project:
-- **Instan (Zero Downtime / Zero Rebuild)**: File disimpan (Ctrl+S), container langsung auto-reload via `node --watch` atau Vite HMR dalam milidetik.
-- **Isolated Node Modules**: Menggunakan anonymous volume `- /app/node_modules` memastikan dependensi binary Linux di dalam container tidak bentrok dengan `node_modules` di mesin Windows/macOS/host.
-- **Single Command**: Cukup `docker compose up` untuk dev, dan `docker compose -f docker-compose.yml up -d` untuk production murni.
+### Cara Menjalankan Development:
+```bash
+# Menjalankan development lokal dengan live reload:
+docker compose -f docker-compose.dev.yml up
 
+# Menjalankan di background:
+docker compose -f docker-compose.dev.yml up -d
+
+# Menghentikan container dev:
+docker compose -f docker-compose.dev.yml down
+```
+
+### Manfaat Pola Ini untuk Semua Project:
+- **Instan (Zero Rebuild)**: File disimpan (Ctrl+S), container langsung auto-reload via `node --watch` atau Vite HMR dalam milidetik.
+- **Isolated Node Modules**: Anonymous volume `- /app/node_modules` memastikan folder `node_modules` host tidak merusak binary Linux di container.
+- **Zero Conflict dengan Production**: File `docker-compose.yml` utama di server tetap 100% aman dan tidak terpengaruh oleh port localhost maupun bind-mount dev.
 ---
 
 ## 5. Checklist & Best Practices Perampingan Size Container
