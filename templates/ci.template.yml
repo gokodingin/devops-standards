@@ -1,0 +1,25 @@
+name: CI - Integration Test (All Branches)
+
+on:
+  push:
+    branches:
+      - dirty
+      - 'dirty/*'
+      - development
+      - develop
+      - staging
+      - main
+      - master
+  pull_request:
+    branches:
+      - dirty
+      - development
+      - develop
+      - staging
+      - main
+      - master
+
+jobs:
+  test:
+    name: 🧪 Run Automated Quality Gate
+    uses: gokodingin/devops-standards/.github/workflows/reusable-test.yml@main

@@ -1,0 +1,56 @@
+name: Reusable Integration Test
+
+on:
+  workflow_call:
+    inputs:
+      node_version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '20'
+
+jobs:
+  integration-test:
+    name: 🧪 Automated Test & Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: 'npm'
+
+      - name: Run Backend Tests (if present)
+        run: |
+          if [ -d "storage-api" ]; then
+            cd storage-api
+            npm ci || npm install
+            if npm run | grep -q "test"; then npm test; fi
+            cd ..
+          elif [ -f "package.json" ]; then
+            npm ci || npm install
+            if npm run | grep -q "test"; then npm test; fi
+          fi
+
+      - name: Run Frontend Tests & Build Check (if present)
+        run: |
+          if [ -d "storage-app" ]; then
+            cd storage-app
+            npm ci || npm install
+            if npm run | grep -q "test"; then npm test; fi
+            npm run build
+            cd ..
+          fi
+
+      - name: Validate All Docker Compose Files
+        run: |
+          for f in docker-compose*.yml; do
+            if [ -f "$f" ]; then
+              echo "Validating $f..."
+              docker compose -f "$f" config > /dev/null
+            fi
+          done
+          echo "All compose files are syntactically valid."

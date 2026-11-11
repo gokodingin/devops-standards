@@ -1,0 +1,24 @@
+name: CD - Deploy Staging
+
+on:
+  push:
+    branches:
+      - staging
+
+jobs:
+  test-gate:
+    name: 🧪 Quality Gatekeeper
+    uses: gokodingin/devops-standards/.github/workflows/reusable-test.yml@main
+
+  deploy:
+    name: 🚀 Deploy to Staging Server
+    needs: test-gate
+    uses: gokodingin/devops-standards/.github/workflows/reusable-deploy.yml@main
+    secrets: inherit
+    with:
+      domain: "storage-staging.gokodingin.com"
+      container_name: "home_storage_nginx_staging"
+      port: 80
+      db_type: "postgres"
+      db_name: "home_storage_staging"
+      compose_file: "docker-compose.staging.yml"

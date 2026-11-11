@@ -1,0 +1,25 @@
+name: CD - Deploy Development
+
+on:
+  push:
+    branches:
+      - development
+      - develop
+
+jobs:
+  test-gate:
+    name: 🧪 Quality Gatekeeper
+    uses: gokodingin/devops-standards/.github/workflows/reusable-test.yml@main
+
+  deploy:
+    name: 🧪 Deploy to Development Server
+    needs: test-gate
+    uses: gokodingin/devops-standards/.github/workflows/reusable-deploy.yml@main
+    secrets: inherit
+    with:
+      domain: "storage-dev.gokodingin.com"
+      container_name: "home_storage_nginx_dev"
+      port: 80
+      db_type: "postgres"
+      db_name: "home_storage_dev"
+      compose_file: "docker-compose.dev.yml"
