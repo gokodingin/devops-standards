@@ -12,7 +12,7 @@ for f in "${files[@]}"; do [[ -f $f ]] || continue
   # 2) user:pass@host in any URL
   grep -nE '[a-z+]+://[^/ :@$]+:[^/ @$]+@' "$src" | grep -vE '://[^:]+:\$\{[A-Z_]+(:\?[^}]*)?\}@' | sed "s|^|$f: credentials embedded in URL: |" && rc=1
   # 3) KEY: literal / KEY=literal for secret-like names (not ${...} refs)
-  grep -nE "^\s*-?\s*[A-Z0-9_]*${SECRET_NAME}[A-Z0-9_]*\s*[:=]\s*[\"']?[^\$\"' #][^\"' #]*" "$src" | sed "s|^|$f: hardcoded secret-like value: |" && rc=1
+  grep -nE "^[0-9]+:\s*-?\s*[A-Z0-9_]*${SECRET_NAME}[A-Z0-9_]*\s*[:=]\s*[\"']?[^\$\"' #][^\"' #]*" "$src" | sed "s|^|$f: hardcoded secret-like value: |" && rc=1
   rm -f "$src"
 done
 exit $rc

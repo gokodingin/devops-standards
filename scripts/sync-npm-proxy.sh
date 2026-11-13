@@ -6,6 +6,8 @@
 set -euo pipefail
 umask 077
 
+command -v jq >/dev/null 2>&1 || { echo "Error: jq is required but not installed." >&2; exit 1; }
+
 : "${NPM_HOST:?NPM_HOST environment variable is required (e.g. http://100.101.0.48:81)}"
 : "${NPM_EMAIL:?NPM_EMAIL environment variable is required}"
 : "${NPM_PASSWORD:?NPM_PASSWORD environment variable is required}"
@@ -39,7 +41,7 @@ fi
 if [[ -n "${ALLOWED_SUFFIXES:-}" ]]; then
     matched=0
     for s in $ALLOWED_SUFFIXES; do
-        if [[ "$DOMAIN" == *"$s" ]]; then
+        if [[ "$DOMAIN" == *"$s" || "$DOMAIN" == "${s#.}" ]]; then
             matched=1
             break
         fi

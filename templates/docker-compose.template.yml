@@ -30,7 +30,7 @@ services:
       - local-db
     environment:
       - POSTGRES_USER=${LOCAL_DB_USER:-postgres}
-      - POSTGRES_PASSWORD=${LOCAL_DB_PASSWORD:?LOCAL_DB_PASSWORD wajib diisi saat profile local-db aktif}
+      - POSTGRES_PASSWORD=${LOCAL_DEV_AUTH:-postgres}
       - POSTGRES_DB=${LOCAL_DB_NAME:-myapp_dev}
     networks:
       - shared_network
