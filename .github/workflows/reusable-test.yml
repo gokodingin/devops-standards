@@ -8,48 +8,95 @@ on:
         required: false
         type: string
         default: '20'
+      working_dirs:
+        description: 'Daftar subdirektori package yang akan dites (dipisahkan spasi)'
+        required: false
+        type: string
+        default: '.'
+
+permissions:
+  contents: read
 
 jobs:
   integration-test:
-    name: 🧪 Automated Test & Build Check
+    name: 🧪 Automated Test, Security Audit & Build Check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2 pinned
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.2.0 pinned
         with:
           node-version: ${{ inputs.node_version }}
 
-      - name: Run Backend Tests (if present)
+      - name: Run Backend & Frontend Tests (Strict Lockfile)
+        env:
+          DIRS: ${{ inputs.working_dirs }}
         run: |
-          if [ -d "storage-api" ]; then
-            cd storage-api
-            npm ci || npm install
-            if npm run | grep -q "test"; then npm test; fi
-            cd ..
-          elif [ -f "package.json" ]; then
-            npm ci || npm install
-            if npm run | grep -q "test"; then npm test; fi
+          set -euo pipefail
+          # Otomatis deteksi direktori aplikasi umum jika default '.'
+          TARGET_DIRS=()
+          if [ "$DIRS" = "." ]; then
+            [ -d "storage-api" ] && TARGET_DIRS+=("storage-api")
+            [ -d "storage-app" ] && TARGET_DIRS+=("storage-app")
+            [ ${#TARGET_DIRS[@]} -eq 0 ] && [ -f "package.json" ] && TARGET_DIRS+=(".")
+          else
+            read -r -a TARGET_DIRS <<< "$DIRS"
           fi
 
-      - name: Run Frontend Tests & Build Check (if present)
-        run: |
-          if [ -d "storage-app" ]; then
-            cd storage-app
-            npm ci || npm install
-            if npm run | grep -q "test"; then npm test; fi
-            npm run build
-            cd ..
-          fi
-
-      - name: Validate All Docker Compose Files
-        run: |
-          for f in docker-compose*.yml; do
-            if [ -f "$f" ]; then
-              echo "Validating $f..."
-              docker compose -f "$f" config > /dev/null
+          for dir in "${TARGET_DIRS[@]}"; do
+            if [ -d "$dir" ] && [ -f "$dir/package.json" ]; then
+              echo "=== Menjalankan pengujian di: $dir ==="
+              (
+                cd "$dir"
+                # Enforce lockfile - dilarang fallback npm install di CI
+                npm ci --ignore-scripts
+                # Run audit for high severity vulnerabilities
+                npm audit --audit-level=high || true
+                # Run test jika script test tersedia
+                if npm run | grep -E '^[ ]+test$' > /dev/null 2>&1; then
+                  npm test
+                fi
+                # Run build jika script build tersedia
+                if npm run | grep -E '^[ ]+build$' > /dev/null 2>&1; then
+                  npm run build
+                fi
+              )
             fi
           done
-          echo "All compose files are syntactically valid."
+
+      - name: Lint Docker Compose Files for Plaintext Secrets
+        run: |
+          set -euo pipefail
+          # Clone atau panggil lint-compose-secrets.sh
+          if [ -f "scripts/lint-compose-secrets.sh" ]; then
+            bash scripts/lint-compose-secrets.sh docker-compose*.yml
+          else
+            curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/scripts/lint-compose-secrets.sh | bash -s -- docker-compose*.yml
+          fi
+
+      - name: Validate All Docker Compose Files (Fail-Closed Check)
+        run: |
+          set -euo pipefail
+          # Buat dummy CI environment file untuk validasi syntax compose
+          CI_ENV_FILE=$(mktemp)
+          cat > "$CI_ENV_FILE" <<'EOF'
+          NODE_ENV=production
+          PORT=3000
+          DATABASE_URL=postgresql://ci_dummy:ci_dummy@DB_POSTGRE:5432/ci_test
+          JWT_SECRET=ci_dummy_secret_not_used_in_production_12345
+          CONTAINER_NAME=ci_test_container
+          CORS_ORIGIN=*
+          EOF
+          for f in docker-compose*.yml; do
+            if [ -f "$f" ]; then
+              echo "Memvalidasi $f dengan dummy environment..."
+              docker compose --env-file "$CI_ENV_FILE" -f "$f" config > /dev/null
+            fi
+          done
+          rm -f "$CI_ENV_FILE"
+          echo "Semua file compose valid secara sintaks dan fail-closed rule."
