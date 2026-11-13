@@ -94,6 +94,7 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
+          trap 'shred -u ~/.ssh/id_deploy 2>/dev/null || rm -f ~/.ssh/id_deploy' EXIT
 
           if [ -n "$KNOWN_HOSTS" ]; then
             printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts

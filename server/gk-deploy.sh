@@ -66,7 +66,7 @@ DB_NAME="${ARGS[8]}"
 if [[ -n "${ALLOWED_SUFFIXES:-}" ]]; then
     matched=0
     for s in $ALLOWED_SUFFIXES; do
-        if [[ "$DOMAIN" == *"$s" ]]; then
+        if [[ "$DOMAIN" == *"$s" || "$DOMAIN" == "${s#.}" ]]; then
             matched=1
             break
         fi
@@ -120,6 +120,13 @@ if [[ "$DB_TYPE" == "postgres" && "$DB_NAME" != "-" ]]; then
     else
         printf "%s\n" "SELECT format('CREATE DATABASE %I', :'db') WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'db') \\gexec" \
             | docker exec -i DB_POSTGRE psql -U "$PG_ADMIN_USER" -d postgres -v ON_ERROR_STOP=1 -v db="$DB_NAME"
+    fi
+elif [[ "$DB_TYPE" == "mariadb" && "$DB_NAME" != "-" ]]; then
+    echo "Ensuring mariadb database $DB_NAME exists..."
+    if [[ "$DRY" == 1 ]]; then
+        echo "DRY_RUN: mysql create database if missing: $DB_NAME"
+    else
+        docker exec -i mariadb_server mysql -u root -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`;"
     fi
 fi
 

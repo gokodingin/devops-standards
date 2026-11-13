@@ -56,8 +56,9 @@ Untuk mencegah kompromi runner GitHub Actions berubah menjadi *arbitrary remote 
 
 ### Cara Memasang di Server Target (`100.101.0.48`):
 
-1. **Salin Script ke Server**:
+1. **Install Prasyarat & Salin Script ke Server**:
    ```bash
+   sudo apt-get update && sudo apt-get install -y jq curl
    sudo cp server/gk-deploy.sh /usr/local/sbin/gk-deploy
    sudo chmod 755 /usr/local/sbin/gk-deploy
    sudo chown root:root /usr/local/sbin/gk-deploy
@@ -74,7 +75,9 @@ Untuk mencegah kompromi runner GitHub Actions berubah menjadi *arbitrary remote 
    NPM_PASSWORD_FILE="/etc/npm-api.secret"
    PG_ADMIN_USER="postgres"
    EOF
-   sudo chmod 600 /etc/gk-deploy.conf
+   # Berikan hak baca kepada group deploy
+   sudo chown root:deploy /etc/gk-deploy.conf /etc/npm-api.secret 2>/dev/null || sudo chown root:gokodingin /etc/gk-deploy.conf
+   sudo chmod 640 /etc/gk-deploy.conf
    ```
 
 3. **Kunci SSH Key di `~/.ssh/authorized_keys`**:
