@@ -6,6 +6,9 @@ on:
       - development
       - develop
 
+permissions:
+  contents: read
+
 jobs:
   test-gate:
     name: 🧪 Quality Gatekeeper
@@ -15,8 +18,15 @@ jobs:
     name: 🧪 Deploy to Development Server
     needs: test-gate
     uses: gokodingin/devops-standards/.github/workflows/reusable-deploy.yml@main
-    secrets: inherit
+    secrets:
+      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+      APP_ENV: ${{ secrets.APP_ENV }}
     with:
+      environment: "development"
       domain: "storage-dev.gokodingin.com"
       container_name: "home_storage_nginx_dev"
       port: 80

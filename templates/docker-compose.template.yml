@@ -1,19 +1,25 @@
-version: '3.8'
-
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
       target: production
-    container_name: ${CONTAINER_NAME:-myapp_prod}
+    container_name: ${CONTAINER_NAME:?CONTAINER_NAME wajib diisi}
     restart: unless-stopped
     expose:
       - "3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DATABASE_URL=${DATABASE_URL:-postgresql://gokodingin:GoKodingin2024@DB_POSTGRE:5432/myapp_prod}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL wajib diisi via secret}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET wajib diisi via secret}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
     networks:
       - shared_network
 
@@ -23,9 +29,9 @@ services:
     profiles:
       - local-db
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=myapp_prod
+      - POSTGRES_USER=${LOCAL_DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${LOCAL_DB_PASSWORD:?LOCAL_DB_PASSWORD wajib diisi saat profile local-db aktif}
+      - POSTGRES_DB=${LOCAL_DB_NAME:-myapp_dev}
     networks:
       - shared_network
 
