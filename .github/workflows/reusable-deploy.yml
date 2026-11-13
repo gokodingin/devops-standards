@@ -1,8 +1,12 @@
-name: Reusable Deploy & Auto-Register NPM
+name: Reusable Deploy
 
 on:
   workflow_call:
     inputs:
+      environment:
+        description: 'GitHub Environment target (development, staging, production)'
+        required: true
+        type: string
       domain:
         description: 'Domain publik aplikasi (misal: api.gokodingin.com)'
         required: true
@@ -25,7 +29,7 @@ on:
         description: 'Nama database yang akan dipastikan ada (opsional)'
         required: false
         type: string
-        default: ''
+        default: '-'
       compose_file:
         description: 'File compose yang digunakan (misal: docker-compose.yml atau docker-compose.staging.yml)'
         required: false
@@ -39,97 +43,72 @@ on:
         description: 'Tailscale IP server target (misal: 100.101.0.48)'
         required: true
       SERVER_USER:
-        description: 'User SSH server (root / gokodingin)'
+        description: 'User SSH server (deploy / gokodingin)'
         required: true
       SSH_PRIVATE_KEY:
         description: 'Private SSH Key untuk login ke server'
         required: true
-      NPM_PASSWORD:
-        description: 'Password login NPM API'
-        required: true
+      SSH_KNOWN_HOSTS:
+        description: 'Pinned SSH host key server target untuk mencegah MITM'
+        required: false
+      APP_ENV:
+        description: 'Isi lengkap file .env untuk aplikasi (dienkripsi di GitHub Secrets)'
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.repository }}-${{ inputs.environment }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ inputs.environment }}
     steps:
       - name: Connect GitHub Runner to Tailscale
-        uses: tailscale/github-action@v3
+        uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade # v3 pinned
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
           tags: tag:ci
 
-      - name: Deploy & Provision via Tailscale SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Deploy via Tailscale SSH (Immutable SHA & Secure Payload)
         env:
-          NPM_PASSWORD: ${{ secrets.NPM_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          HOST: ${{ secrets.SERVER_HOST }}
+          USER: ${{ secrets.SERVER_USER }}
+          APP_ENV: ${{ secrets.APP_ENV }}
+          REPO: ${{ github.event.repository.name }}
+          SHA: ${{ github.sha }}
+          COMPOSE: ${{ inputs.compose_file }}
           DOMAIN: ${{ inputs.domain }}
-          CONTAINER_NAME: ${{ inputs.container_name }}
+          CTR: ${{ inputs.container_name }}
           PORT: ${{ inputs.port }}
-          DB_TYPE: ${{ inputs.db_type }}
-          DB_NAME: ${{ inputs.db_name }}
-          COMPOSE_FILE: ${{ inputs.compose_file }}
-          REPO_NAME: ${{ github.event.repository.name }}
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: NPM_PASSWORD,DOMAIN,CONTAINER_NAME,PORT,DB_TYPE,DB_NAME,COMPOSE_FILE,REPO_NAME
-          script: |
-            set -e
-            git config --global --add safe.directory '*' || true
-            echo "=== [1/3] Menyiapkan Direktori & Kode Aplikasi ==="
-            PROJECT_DIR="/home/gokodingin/$REPO_NAME"
-            if [ ! -d "$PROJECT_DIR/.git" ]; then
-              echo "Folder $PROJECT_DIR belum memiliki git repo. Meng-clone dari GitHub..."
-              mkdir -p "/home/gokodingin"
-              if [ -d "$PROJECT_DIR" ]; then
-                cd "$PROJECT_DIR"
-                git init
-                git remote add origin "git@github.com:${{ github.repository }}.git" || true
-                git fetch origin
-                git checkout -f "${{ github.ref_name }}" || git checkout -b "${{ github.ref_name }}" "origin/${{ github.ref_name }}"
-              else
-                git clone "git@github.com:${{ github.repository }}.git" "$PROJECT_DIR"
-                cd "$PROJECT_DIR"
-                git checkout "${{ github.ref_name }}"
-              fi
-            else
-              cd "$PROJECT_DIR"
-              git fetch origin
-              git checkout "${{ github.ref_name }}"
-              git pull origin "${{ github.ref_name }}"
-            fi
-            echo "=== [2/3] Memeriksa Shared Database ==="
-            COMPOSE_PROFILE=""
-            if [ "$DB_TYPE" = "postgres" ]; then
-              if docker ps --format '{{.Names}}' | grep -q "^DB_POSTGRE$"; then
-                echo "[DB] Shared PostgreSQL terdeteksi aktif."
-                if [ -n "$DB_NAME" ]; then
-                  docker exec DB_POSTGRE psql -U gokodingin -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1 || \
-                  docker exec DB_POSTGRE psql -U gokodingin -d postgres -c "CREATE DATABASE $DB_NAME;"
-                  echo "[DB] Database $DB_NAME siap."
-                fi
-              else
-                echo "[DB] DB_POSTGRE tidak aktif, mengaktifkan local fallback..."
-                COMPOSE_PROFILE="--profile local-db"
-              fi
-            elif [ "$DB_TYPE" = "mariadb" ] || [ "$DB_TYPE" = "mysql" ]; then
-              if docker ps --format '{{.Names}}' | grep -q "^mariadb_server$"; then
-                echo "[DB] Shared MariaDB terdeteksi aktif."
-                if [ -n "$DB_NAME" ]; then
-                  docker exec mariadb_server mysql -u root -e "CREATE DATABASE IF NOT EXISTS $DB_NAME;"
-                  echo "[DB] Database $DB_NAME siap."
-                fi
-              fi
-            fi
+          DBT: ${{ inputs.db_type }}
+          DBN: ${{ inputs.db_name }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          trap 'shred -u ~/.ssh/id_deploy 2>/dev/null || rm -f ~/.ssh/id_deploy' EXIT
 
-            echo "=== [3/3] Menjalankan Container & Sinkronisasi NPM ==="
-            # Gunakan nama project turunan dari compose_file (misal dashboard-crm-staging / dashboard-crm-prod)
-            CLEAN_ENV=$(echo "$COMPOSE_FILE" | sed -E 's/^(docker-)?compose\.?//; s/\.ya?ml$//' | tr -cd 'a-z0-9_-')
-            if [ -z "$CLEAN_ENV" ] || [ "$CLEAN_ENV" = "prod" ] || [ "$CLEAN_ENV" = "production" ] || [ "$CLEAN_ENV" = "yml" ]; then
-              PROJECT_ENV_NAME="${REPO_NAME}-prod"
-            else
-              PROJECT_ENV_NAME="${REPO_NAME}-${CLEAN_ENV}"
-            fi
-            docker compose -p "$PROJECT_ENV_NAME" -f "$COMPOSE_FILE" $COMPOSE_PROFILE up -d --build
-            # Panggil binary global sync-npm-proxy yang terinstall di /usr/local/bin
-            sync-npm-proxy "$DOMAIN" "$CONTAINER_NAME" "$PORT"
+          if [ -n "$KNOWN_HOSTS" ]; then
+            printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+            chmod 644 ~/.ssh/known_hosts
+            STRICT_HOST_KEY="yes"
+          else
+            STRICT_HOST_KEY="accept-new"
+          fi
+
+          echo "Mengirim perintah deploy untuk commit $SHA..."
+          printf '%s' "$APP_ENV" | ssh -i ~/.ssh/id_deploy \
+            -o StrictHostKeyChecking="$STRICT_HOST_KEY" \
+            -o IdentitiesOnly=yes \
+            -o ConnectTimeout=15 \
+            "${USER}@${HOST}" "deploy $REPO $SHA $COMPOSE $DOMAIN $CTR $PORT $DBT $DBN"
+
+          shred -u ~/.ssh/id_deploy || rm -f ~/.ssh/id_deploy

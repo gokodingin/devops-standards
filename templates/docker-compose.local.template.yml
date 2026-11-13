@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build:
@@ -8,7 +6,7 @@ services:
       target: development
     container_name: home_storage_backend_local
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./storage-api:/app
       - /app/node_modules
@@ -16,10 +14,10 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=3000
-      - DATABASE_URL=postgresql://gokodingin:***REMOVED***@DB_POSTGRE:5432/home_storage_dev
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL wajib diisi (jalankan scripts/gen-dev-env.sh)}
       - STORAGE_ROOT=/var/storage
-      - JWT_SECRET=***REMOVED***
-      - CORS_ORIGIN=http://localhost:5173
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET wajib diisi (jalankan scripts/gen-dev-env.sh)}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:5173}
     command: npm run dev
     networks:
       - shared_network
@@ -33,7 +31,7 @@ services:
         VITE_API_URL: http://localhost:3000/api
     container_name: home_storage_frontend_local
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     volumes:
       - ./storage-app:/app
       - /app/node_modules

@@ -136,7 +136,7 @@ services:
     container_name: cloudflared-tunnel
     image: cloudflare/cloudflared:latest
     restart: always
-    command: tunnel run --token ***REMOVED***
+    command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN wajib diisi}
     networks:
       - npm_network
       - shared_network
