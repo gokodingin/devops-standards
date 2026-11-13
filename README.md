@@ -1,6 +1,6 @@
 # GoKodingin DevOps & Infrastructure Standards
 
-Repository terpusat untuk standar arsitektur infrastruktur, routing, template multi-stage container Docker, dan reusable CI/CD workflows untuk server `100.101.0.48`.
+Repository terpusat untuk standar arsitektur infrastruktur, routing, template multi-stage container Docker, otomasi secret management, dan reusable CI/CD workflows untuk server `100.101.0.48`.
 
 ---
 
@@ -12,12 +12,14 @@ Repository terpusat untuk standar arsitektur infrastruktur, routing, template mu
    Standar multi-stage build untuk Node.js/TypeScript dan Frontend SPA untuk memisahkan stage Dev, Staging, dan Production (merampingkan size container >70%).
 3. **[Shared Database & CI/CD Strategy](docs/SHARED_DB_AND_CI_CD_STRATEGY.md)**  
    Mencegah pembuatan container database berulang di setiap project, auto-provision DB di `DB_POSTGRE` & `mariadb_server`, serta auto-registrasi subdomain via REST API NPM.
+4. **[Manajemen Secrets & Keamanan CI/CD](docs/SECRET_MANAGEMENT_AND_SECURITY.md)**  
+   Prinsip *fail-closed zero-fallback secrets*, otomasi dotenv ke GitHub Environments via `push-secrets.sh`, isolasi SSH forced-command (`gk-deploy.sh`), dan SOP emergency response.
 
 ---
 
 ## ⚡ Quick Start: Ambil Template Langsung ke Project Baru
 
-Cukup jalankan perintah cURL berikut di dalam folder project baru Anda:
+Jalankan perintah cURL berikut di dalam folder project baru Anda:
 
 ### 1. Ambil Template Multi-Stage Dockerfile (Node.js/TypeScript Backend)
 ```bash
@@ -29,7 +31,7 @@ curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/tem
 curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/templates/Dockerfile.spa -o Dockerfile
 ```
 
-### 3. Ambil Template `docker-compose.yml` (Zero-Host-Port & Shared DB)
+### 3. Ambil Template `docker-compose.yml` (Fail-Closed, Zero-Host-Port & Shared DB)
 ```bash
 curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/templates/docker-compose.template.yml -o docker-compose.yml
 ```
@@ -43,43 +45,61 @@ curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/tem
 ```bash
 curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/templates/docker-compose.dev.template.yml -o docker-compose.dev.yml
 ```
+
+### 6. Generate `.env` Lokal Aman untuk Developer
+```bash
+curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/scripts/gen-dev-env.sh | bash
+```
+
 ---
 
-## 🚀 Reusable CI/CD Pipeline (Integration Test -> Staging -> Production)
+## 🚀 Reusable CI/CD Pipeline (Quality Gate -> Staging -> Production)
 
-Seluruh project GoKodingin wajib memiliki pipeline CI/CD 3 tahap yang saling bergantung (**dependent pipeline**):
+Seluruh project GoKodingin wajib memisahkan workflow CI (Automated Test & Compose Lint) dan CD (Deploy ke Staging / Production):
 
-1. **Stage 1: `integration-test` (Gatekeeper)**: Menjalankan test unit/integration, compile/build check, dan validasi sintaks Docker Compose. Jika gagal, deployment otomatis dibatalkan.
-2. **Stage 2: `deploy-staging`**: Bergantung (`needs: integration-test`). Hanya aktif di branch `staging`/`develop`. Menerapkan `docker-compose.staging.yml`.
-3. **Stage 3: `deploy-production`**: Bergantung (`needs: integration-test`). Hanya aktif di branch `main`/`master`. Menerapkan `docker-compose.yml`.
-
-### Cara Pasang di Project Baru:
+### Pasang Workflow di Project Baru:
 ```bash
 mkdir -p .github/workflows
-curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/templates/pipeline.template.yml -o .github/workflows/pipeline.yml
+
+# 1. CI Quality Gatekeeper (Jalan di seluruh push branch / PR)
+curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/templates/ci.template.yml -o .github/workflows/ci.yml
+
+# 2. CD Staging (Auto deploy saat push ke branch staging)
+curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/templates/cd-staging.template.yml -o .github/workflows/cd-staging.yml
+
+# 3. CD Production (Auto deploy saat push ke branch main)
+curl -sSL https://raw.githubusercontent.com/gokodingin/devops-standards/main/templates/cd-production.template.yml -o .github/workflows/cd-production.yml
 ```
+
 ---
 
-## 🔐 GitHub Secrets yang Wajib Didaftarkan di Repository Project
+## 🔐 GitHub Secrets & Environments yang Wajib Dikonfigurasi
 
-Karena server `100.101.0.48` berada di dalam jaringan privat **Tailscale**, GitHub Runner wajib terhubung ke Tailscale terlebih dahulu sebelum melakukan SSH:
+Untuk keamanan isolasi rahasia (*least-privilege*), pisahkan konfigurasi rahasia ke level Repository dan level GitHub Environment:
 
+### A. Repository Secrets (Koneksi Runner ke Server):
 | Secret Name | Deskripsi | Nilai Contoh |
 | :--- | :--- | :--- |
 | **`TAILSCALE_AUTHKEY`** | Ephemeral Auth Key dari Tailscale Admin Console | `tskey-auth-kXXXXX-XXXXX` |
 | **`SERVER_HOST`** | IP Tailscale server target | `100.101.0.48` |
-| **`SERVER_USER`** | User SSH server | `root` atau `gokodingin` |
-| **`SSH_PRIVATE_KEY`** | Private key SSH (`id_rsa` / `id_ed25519`) | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
-| **`NPM_PASSWORD`** | Password akun NPM (`gokodingin@gmail.com`) | Password dashboard NPM Anda |
+| **`SERVER_USER`** | User SSH server | `deploy` atau `gokodingin` |
+| **`SSH_PRIVATE_KEY`** | Private key SSH (`id_ed25519`) runner | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
+| **`SSH_KNOWN_HOSTS`** | Host key fingerprint server (cegah MITM) | Hasil `ssh-keyscan 100.101.0.48` |
 
-> **💡 Cara Mendapatkan `TAILSCALE_AUTHKEY`:**
-> 1. Buka [Tailscale Admin Console](https://login.tailscale.com/admin/settings/keys).
-> 2. Klik **Generate auth key**.
-> 3. Aktifkan **Reusable** (opsional) dan **Ephemeral** (agar mesin GitHub Actions otomatis dihapus dari daftar device Tailscale setelah deploy selesai).
-> 4. Tambahkan tag misal `tag:ci` -> klik **Generate key** dan simpan di GitHub Secrets repo Anda sebagai `TAILSCALE_AUTHKEY`.
+### B. Environment Secrets (`production` dan `staging`):
+Gunakan script `push-secrets.sh` untuk mengunggah file dotenv lokal tanpa membuka dashboard web:
+```bash
+./scripts/push-secrets.sh -r gokodingin/nama-repo -e production -f .env.production
+```
+Secret akan tersimpan sebagai **`APP_ENV`** di GitHub Environment terkait dan diinjeksi via stdin saat proses deploy ke server.
 
 ---
+
 ## 🛠️ Scripts & Utilities
 
-- `scripts/sync-npm-proxy.sh`: Script sinkronisasi NPM via REST API (juga terinstall global di server di `/usr/local/bin/sync-npm-proxy`).
+- `scripts/push-secrets.sh`: Validasi dotenv lokal (mode 600, anti-dummy) dan sinkronisasi ke GitHub Environment secrets via `gh`.
+- `scripts/lint-compose-secrets.sh`: CI gatekeeper untuk mendeteksi fallback secret dan plaintext credentials di file compose.
+- `scripts/gen-dev-env.sh`: Generator file `.env` lokal developer dengan secret acak.
+- `scripts/sync-npm-proxy.sh`: Script sinkronisasi NPM via REST API tahan injeksi (menggunakan `jq`).
+- `server/gk-deploy.sh`: Entrypoint server SSH restricted forced-command untuk runner deploy.
 - `scripts/check-proxy-mesh.sh`: Script diagnostik kesehatan jaringan internal Docker dan resolusi DNS antar container.
