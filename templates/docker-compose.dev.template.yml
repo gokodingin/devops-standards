@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ── Node.js Backend (Dev Server) ─────────────────────────────
   backend_dev:
@@ -8,22 +6,22 @@ services:
       dockerfile: Dockerfile
       target: development       # Stage dev: runtime + hot-reload + dev tools
     container_name: home_storage_backend_dev
-    user: "root"
+    user: "node"
     restart: unless-stopped
     environment:
       NODE_ENV: development
       PORT: 3000
-      DATABASE_URL: ${DATABASE_URL:-postgresql://gokodingin:***REMOVED***@DB_POSTGRE:5432/home_storage_dev}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL wajib diisi (jalankan scripts/gen-dev-env.sh)}
       STORAGE_ROOT: /var/storage
-      JWT_SECRET: ${JWT_SECRET:-***REMOVED***}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET wajib diisi (jalankan scripts/gen-dev-env.sh)}
       JWT_EXPIRES_IN: 24h
-      CORS_ORIGIN: "*"
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
     volumes:
       - ./storage_dev:/var/storage
     networks:
       - shared_network
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/health"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -45,7 +43,7 @@ services:
     networks:
       - shared_network
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

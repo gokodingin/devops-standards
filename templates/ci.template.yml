@@ -19,6 +19,9 @@ on:
       - main
       - master
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: 🧪 Run Automated Quality Gate
