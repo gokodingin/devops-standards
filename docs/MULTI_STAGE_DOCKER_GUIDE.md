@@ -143,7 +143,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DATABASE_URL=${DATABASE_URL:-postgresql://gokodingin:***REMOVED***@DB_POSTGRE:5432/myapp_prod}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL wajib diisi via environment secret}
     networks:
       - shared_network
 
@@ -181,7 +181,7 @@ services:
     environment:
       - NODE_ENV=staging
       - PORT=3000
-      - DATABASE_URL=${DATABASE_URL:-postgresql://gokodingin:***REMOVED***@DB_POSTGRE:5432/myapp_staging}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL wajib diisi via environment secret}
     networks:
       - shared_network
 
