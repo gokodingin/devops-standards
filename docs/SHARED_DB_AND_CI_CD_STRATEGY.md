@@ -36,8 +36,8 @@ services:
     expose:
       - "3000"
     environment:
-      # Default mengarah ke shared DB di server
-      - DATABASE_URL=${DATABASE_URL:-postgresql://gokodingin:GoKodingin2024@DB_POSTGRE:5432/myapp_db}
+      # Mengarah ke shared DB di server via APP_ENV / secret, tanpa hardcoded password
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL wajib diisi (contoh: postgresql://app_user:app_password@DB_POSTGRE:5432/myapp_db)}
     networks:
       - shared_network
 
